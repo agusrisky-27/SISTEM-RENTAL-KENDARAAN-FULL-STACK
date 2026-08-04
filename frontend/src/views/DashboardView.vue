@@ -1,255 +1,106 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import api from '../api'
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler,
-  ArcElement
-} from 'chart.js'
-import { Line, Doughnut } from 'vue-chartjs'
+import { ref } from 'vue';
+import { 
+  UsersIcon, 
+  TruckIcon, 
+  BanknotesIcon, 
+  ClipboardDocumentCheckIcon,
+  ArrowTrendingUpIcon
+} from '@heroicons/vue/24/outline';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler,
-  ArcElement
-)
+const stats = ref([
+  { name: 'Total Kendaraan', value: '24', icon: TruckIcon, color: 'text-blue-600', bg: 'bg-blue-100 dark:bg-blue-900/30' },
+  { name: 'Total Pelanggan', value: '142', icon: UsersIcon, color: 'text-purple-600', bg: 'bg-purple-100 dark:bg-purple-900/30' },
+  { name: 'Total Pendapatan', value: 'Rp 12.5M', icon: BanknotesIcon, color: 'text-green-600', bg: 'bg-green-100 dark:bg-green-900/30' },
+  { name: 'Transaksi Aktif', value: '8', icon: ClipboardDocumentCheckIcon, color: 'text-orange-600', bg: 'bg-orange-100 dark:bg-orange-900/30' },
+]);
 
-const vehicles = ref([])
-const transaksis = ref([])
-const pelanggans = ref([])
-const pembayarans = ref([])
+const recentTransactions = ref([
+  { id: 'TRX-001', customer: 'Budi Santoso', vehicle: 'Toyota Avanza', date: '2023-10-25', status: 'Selesai', amount: 'Rp 450.000' },
+  { id: 'TRX-002', customer: 'Siti Aminah', vehicle: 'Honda Brio', date: '2023-10-26', status: 'Aktif', amount: 'Rp 300.000' },
+  { id: 'TRX-003', customer: 'Andi Wijaya', vehicle: 'Mitsubishi Xpander', date: '2023-10-26', status: 'Pending', amount: 'Rp 500.000' },
+  { id: 'TRX-004', customer: 'Dewi Lestari', vehicle: 'Suzuki Ertiga', date: '2023-10-27', status: 'Aktif', amount: 'Rp 400.000' },
+]);
 
-const loadData = async () => {
-  try {
-    const [v, t, p, pay] = await Promise.all([
-      api.get('/kendaraan').catch(() => ({data:{data:[]}})),
-      api.get('/transaksi').catch(() => ({data:{data:[]}})),
-      api.get('/pelanggan').catch(() => ({data:{data:[]}})),
-      api.get('/pembayaran').catch(() => ({data:{data:[]}}))
-    ])
-    
-    vehicles.value = v.data.data || v.data || []
-    transaksis.value = t.data.data || t.data || []
-    pelanggans.value = p.data.data || p.data || []
-    pembayarans.value = pay.data.data || pay.data || []
-  } catch (error) {
-    console.error('Error loading dashboard data', error)
+const getStatusColor = (status) => {
+  switch (status) {
+    case 'Selesai': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
+    case 'Aktif': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
+    case 'Pending': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
+    default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400';
   }
-}
-
-onMounted(() => {
-  loadData()
-})
-
-const formatRp = (n) => 'Rp ' + Number(n).toLocaleString('id-ID')
-
-// COMPUTED METRICS
-const totalVehicles = computed(() => vehicles.value.length)
-const vTersedia = computed(() => vehicles.value.filter(v => v.status === 'tersedia').length)
-const vDisewa = computed(() => vehicles.value.filter(v => v.status === 'disewa').length)
-const vServis = computed(() => vehicles.value.filter(v => v.status === 'servis' || v.status === 'rusak').length)
-
-const activeTrans = computed(() => transaksis.value.filter(t => t.status === 'aktif' || t.status === 'terlambat').length)
-const terlambatTrans = computed(() => transaksis.value.filter(t => t.status === 'terlambat').length)
-
-const totalCustomers = computed(() => pelanggans.value.length)
-
-const totalRevenue = computed(() => {
-  return pembayarans.value.reduce((sum, p) => sum + parseFloat(p.jumlah || 0), 0)
-})
-
-// CHARTS DATA
-const revenueChartData = computed(() => {
-  // Aggregate revenue by month (simplified for demo based on all payments)
-  // Normally we would group by month dynamically.
-  
-  const monthlyData = {
-    'Jan': 0, 'Feb': 0, 'Mar': 0, 'Apr': 0, 'Mei': 0, 'Jun': 0, 
-    'Jul': 0, 'Ags': 0, 'Sep': 0, 'Okt': 0, 'Nov': 0, 'Des': 0
-  }
-  
-  pembayarans.value.forEach(p => {
-    if (p.tanggal_bayar) {
-      const date = new Date(p.tanggal_bayar)
-      const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des']
-      const m = months[date.getMonth()]
-      monthlyData[m] += parseFloat(p.jumlah)
-    }
-  })
-  
-  // Give some realistic dummy curve if API is empty/DB is down so it looks good
-  const fallback = [1200000, 1900000, 3000000, 5000000, 4200000, 6800000, 8400000]
-  const actualValues = Object.values(monthlyData).slice(0, 7) // up to July
-  
-  const hasData = actualValues.some(v => v > 0)
-  
-  return {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul'],
-    datasets: [
-      {
-        label: 'Pendapatan (Rp)',
-        backgroundColor: 'rgba(99, 102, 241, 0.15)',
-        borderColor: '#6366f1',
-        borderWidth: 3,
-        pointBackgroundColor: '#ffffff',
-        pointBorderColor: '#6366f1',
-        pointBorderWidth: 2,
-        pointRadius: 4,
-        fill: true,
-        tension: 0.4, // Smooth curve
-        data: hasData ? actualValues : fallback
-      }
-    ]
-  }
-})
-
-const chartOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: { display: false },
-    tooltip: {
-      callbacks: {
-        label: function(context) {
-          return formatRp(context.raw)
-        }
-      }
-    }
-  },
-  scales: {
-    y: {
-      beginAtZero: true,
-      grid: { color: 'rgba(255,255,255,0.05)' },
-      ticks: {
-        color: '#94a3b8',
-        callback: function(value) {
-          if (value >= 1000000) return (value/1000000).toFixed(1) + ' Jt'
-          return value
-        }
-      }
-    },
-    x: {
-      grid: { display: false },
-      ticks: { color: '#94a3b8' }
-    }
-  }
-}
-
-const statusChartData = computed(() => {
-  return {
-    labels: ['Tersedia', 'Disewa', 'Servis/Rusak'],
-    datasets: [{
-      backgroundColor: ['#3b82f6', '#ef4444', '#f59e0b'],
-      borderWidth: 0,
-      data: totalVehicles.value > 0 ? [vTersedia.value, vDisewa.value, vServis.value] : [8, 3, 1] // Fallback if no DB
-    }]
-  }
-})
-
-const doughnutOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  cutout: '75%',
-  plugins: {
-    legend: {
-      position: 'bottom',
-      labels: { color: '#94a3b8', usePointStyle: true, padding: 20 }
-    }
-  }
-}
+};
 </script>
 
 <template>
-  <div class="page active" style="padding-bottom: 40px;">
-    <!-- METRIC CARDS -->
-    <div class="stats-grid" style="margin-bottom: 24px;">
-      <div class="stat-card blue">
-        <div class="sc-top">
-          <div><div class="sc-label">Total Kendaraan</div></div>
-          <div class="sc-icon ic-blue"><i class="fa-solid fa-car-side"></i></div>
-        </div>
-        <div class="sc-value">{{ totalVehicles || 12 }}</div>
-        <div class="sc-sub">{{ vTersedia || 8 }} tersedia · {{ vDisewa || 3 }} disewa</div>
+  <div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Dashboard Overview</h1>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Ringkasan performa penyewaan kendaraan Anda.</p>
       </div>
-      
-      <div class="stat-card purple">
-        <div class="sc-top">
-          <div><div class="sc-label">Transaksi Aktif</div></div>
-          <div class="sc-icon ic-purple"><i class="fa-solid fa-file-contract"></i></div>
-        </div>
-        <div class="sc-value">{{ activeTrans || 4 }}</div>
-        <div class="sc-sub" v-if="terlambatTrans > 0">
-          <span style="color:#ef4444"><i class="fa-solid fa-triangle-exclamation"></i> {{ terlambatTrans }} terlambat kembali</span>
-        </div>
-        <div class="sc-sub" v-else>Semua tepat waktu</div>
-      </div>
+      <button class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm">
+        <ArrowTrendingUpIcon class="w-5 h-5" />
+        Generate Report
+      </button>
+    </div>
 
-      <div class="stat-card green">
-        <div class="sc-top">
-          <div><div class="sc-label">Total Pendapatan</div></div>
-          <div class="sc-icon ic-green"><i class="fa-solid fa-sack-dollar"></i></div>
+    <!-- Stats Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div 
+        v-for="stat in stats" 
+        :key="stat.name"
+        class="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow group"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ stat.name }}</p>
+            <p class="text-2xl font-bold text-gray-900 dark:text-white mt-2">{{ stat.value }}</p>
+          </div>
+          <div :class="[stat.bg, stat.color, 'w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-110']">
+            <component :is="stat.icon" class="w-6 h-6" />
+          </div>
         </div>
-        <div class="sc-value" style="font-size:20px">{{ formatRp(totalRevenue || 8400000) }}</div>
-        <div class="sc-sub">dari pembayaran berhasil</div>
-      </div>
-
-      <div class="stat-card amber">
-        <div class="sc-top">
-          <div><div class="sc-label">Total Pelanggan</div></div>
-          <div class="sc-icon ic-amber"><i class="fa-solid fa-user-group"></i></div>
-        </div>
-        <div class="sc-value">{{ totalCustomers || 27 }}</div>
-        <div class="sc-sub">Telah mendaftar</div>
       </div>
     </div>
-    
-    <!-- CHARTS SECTION -->
-    <div class="dashboard-charts" style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
-      
-      <!-- Line Chart -->
-      <div class="chart-container" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 20px; padding: 24px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-          <div>
-            <h3 style="margin: 0; color: var(--text-1); font-size: 16px; font-weight: 600;">Statistik Pendapatan</h3>
-            <p style="margin: 4px 0 0; color: var(--text-3); font-size: 13px;">Pertumbuhan pendapatan 7 bulan terakhir</p>
-          </div>
-          <button class="btn-ghost" style="padding: 6px 12px; font-size: 12px;"><i class="fa-solid fa-download"></i> Laporan</button>
-        </div>
-        <div style="height: 300px; width: 100%;">
-          <Line :data="revenueChartData" :options="chartOptions" />
-        </div>
+
+    <!-- Recent Transactions Table -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+      <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-gray-900 dark:text-white">Transaksi Terbaru</h3>
+        <button class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
+          Lihat Semua
+        </button>
       </div>
-      
-      <!-- Doughnut Chart -->
-      <div class="chart-container" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 20px; padding: 24px;">
-        <div>
-          <h3 style="margin: 0; color: var(--text-1); font-size: 16px; font-weight: 600;">Status Kendaraan</h3>
-          <p style="margin: 4px 0 24px; color: var(--text-3); font-size: 13px;">Komposisi kesediaan armada</p>
-        </div>
-        <div style="height: 250px; width: 100%; position: relative;">
-          <Doughnut :data="statusChartData" :options="doughnutOptions" />
-          <div style="position: absolute; top: 40%; left: 0; right: 0; text-align: center; pointer-events: none;">
-            <div style="font-size: 24px; font-weight: 700; color: var(--text-1);">{{ totalVehicles || 12 }}</div>
-            <div style="font-size: 12px; color: var(--text-3);">Unit</div>
-          </div>
-        </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm whitespace-nowrap">
+          <thead class="bg-gray-50 dark:bg-gray-900/50 text-gray-600 dark:text-gray-400">
+            <tr>
+              <th scope="col" class="px-6 py-4 font-medium">ID Transaksi</th>
+              <th scope="col" class="px-6 py-4 font-medium">Pelanggan</th>
+              <th scope="col" class="px-6 py-4 font-medium">Kendaraan</th>
+              <th scope="col" class="px-6 py-4 font-medium">Tanggal</th>
+              <th scope="col" class="px-6 py-4 font-medium">Total</th>
+              <th scope="col" class="px-6 py-4 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100 dark:divide-gray-700 text-gray-700 dark:text-gray-300">
+            <tr v-for="trx in recentTransactions" :key="trx.id" class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+              <td class="px-6 py-4 font-medium text-gray-900 dark:text-white">{{ trx.id }}</td>
+              <td class="px-6 py-4">{{ trx.customer }}</td>
+              <td class="px-6 py-4">{{ trx.vehicle }}</td>
+              <td class="px-6 py-4">{{ trx.date }}</td>
+              <td class="px-6 py-4 font-medium">{{ trx.amount }}</td>
+              <td class="px-6 py-4">
+                <span :class="['px-2.5 py-1 rounded-full text-xs font-medium', getStatusColor(trx.status)]">
+                  {{ trx.status }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-      
     </div>
   </div>
 </template>

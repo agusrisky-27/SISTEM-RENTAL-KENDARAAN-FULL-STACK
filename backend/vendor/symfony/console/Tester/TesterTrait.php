@@ -16,6 +16,8 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Output\StreamOutput;
+use Symfony\Component\Console\Tester\Constraint\CommandFailed;
+use Symfony\Component\Console\Tester\Constraint\CommandIsInvalid;
 use Symfony\Component\Console\Tester\Constraint\CommandIsSuccessful;
 
 /**
@@ -23,10 +25,14 @@ use Symfony\Component\Console\Tester\Constraint\CommandIsSuccessful;
  */
 trait TesterTrait
 {
-    private $output;
+    private StreamOutput $output;
+
+    /**
+     * @var list<string>
+     */
     private array $inputs = [];
     private bool $captureStreamsIndependently = false;
-    private $input;
+    private InputInterface $input;
     private int $statusCode;
 
     /**
@@ -104,11 +110,21 @@ trait TesterTrait
         Assert::assertThat($this->statusCode, new CommandIsSuccessful(), $message);
     }
 
+    public function assertCommandFailed(string $message = ''): void
+    {
+        Assert::assertThat($this->statusCode, new CommandFailed(), $message);
+    }
+
+    public function assertCommandIsInvalid(string $message = ''): void
+    {
+        Assert::assertThat($this->statusCode, new CommandIsInvalid(), $message);
+    }
+
     /**
      * Sets the user inputs.
      *
-     * @param array $inputs An array of strings representing each input
-     *                      passed to the command input stream
+     * @param list<string> $inputs An array of strings representing each input
+     *                             passed to the command input stream
      *
      * @return $this
      */
@@ -128,9 +144,9 @@ trait TesterTrait
      *  * verbosity:                 Sets the output verbosity flag
      *  * capture_stderr_separately: Make output of stdOut and stdErr separately available
      */
-    private function initOutput(array $options)
+    private function initOutput(array $options): void
     {
-        $this->captureStreamsIndependently = \array_key_exists('capture_stderr_separately', $options) && $options['capture_stderr_separately'];
+        $this->captureStreamsIndependently = $options['capture_stderr_separately'] ?? false;
         if (!$this->captureStreamsIndependently) {
             $this->output = new StreamOutput(fopen('php://memory', 'w', false));
             if (isset($options['decorated'])) {
@@ -152,17 +168,17 @@ trait TesterTrait
 
             $reflectedOutput = new \ReflectionObject($this->output);
             $strErrProperty = $reflectedOutput->getProperty('stderr');
-            $strErrProperty->setAccessible(true);
             $strErrProperty->setValue($this->output, $errorOutput);
 
             $reflectedParent = $reflectedOutput->getParentClass();
             $streamProperty = $reflectedParent->getProperty('stream');
-            $streamProperty->setAccessible(true);
             $streamProperty->setValue($this->output, fopen('php://memory', 'w', false));
         }
     }
 
     /**
+     * @param list<string> $inputs
+     *
      * @return resource
      */
     private static function createStream(array $inputs)
@@ -170,7 +186,11 @@ trait TesterTrait
         $stream = fopen('php://memory', 'r+', false);
 
         foreach ($inputs as $input) {
-            fwrite($stream, $input.\PHP_EOL);
+            fwrite($stream, $input);
+
+            if (!str_ends_with($input, "\x4")) {
+                fwrite($stream, \PHP_EOL);
+            }
         }
 
         rewind($stream);

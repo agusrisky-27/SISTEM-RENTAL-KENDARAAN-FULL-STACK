@@ -14,6 +14,7 @@ namespace Symfony\Component\Console\Helper;
 use Symfony\Component\Console\Exception\InvalidArgumentException;
 use Symfony\Component\Console\Exception\RuntimeException;
 use Symfony\Component\Console\Formatter\OutputFormatter;
+use Symfony\Component\Console\Formatter\OutputFormatterInterface;
 use Symfony\Component\Console\Formatter\WrappableOutputFormatterInterface;
 use Symfony\Component\Console\Output\ConsoleSectionOutput;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -35,27 +36,28 @@ class Table
     private const SEPARATOR_BOTTOM = 3;
     private const BORDER_OUTSIDE = 0;
     private const BORDER_INSIDE = 1;
+    private const DISPLAY_ORIENTATION_DEFAULT = 'default';
+    private const DISPLAY_ORIENTATION_HORIZONTAL = 'horizontal';
+    private const DISPLAY_ORIENTATION_VERTICAL = 'vertical';
 
     private ?string $headerTitle = null;
     private ?string $footerTitle = null;
     private array $headers = [];
     private array $rows = [];
-    private bool $horizontal = false;
     private array $effectiveColumnWidths = [];
     private int $numberOfColumns;
-    private $output;
-    private $style;
+    private TableStyle $style;
     private array $columnStyles = [];
     private array $columnWidths = [];
     private array $columnMaxWidths = [];
     private bool $rendered = false;
+    private string $displayOrientation = self::DISPLAY_ORIENTATION_DEFAULT;
 
     private static array $styles;
 
-    public function __construct(OutputInterface $output)
-    {
-        $this->output = $output;
-
+    public function __construct(
+        private OutputInterface $output,
+    ) {
         self::$styles ??= self::initStyles();
 
         $this->setStyle('default');
@@ -64,7 +66,7 @@ class Table
     /**
      * Sets a style definition.
      */
-    public static function setStyleDefinition(string $name, TableStyle $style)
+    public static function setStyleDefinition(string $name, TableStyle $style): void
     {
         self::$styles ??= self::initStyles();
 
@@ -78,7 +80,7 @@ class Table
     {
         self::$styles ??= self::initStyles();
 
-        return self::$styles[$name] ?? throw new InvalidArgumentException(sprintf('Style "%s" is not defined.', $name));
+        return self::$styles[$name] ?? throw new InvalidArgumentException(\sprintf('Style "%s" is not defined.', $name));
     }
 
     /**
@@ -163,7 +165,7 @@ class Table
     public function setColumnMaxWidth(int $columnIndex, int $width): static
     {
         if (!$this->output->getFormatter() instanceof WrappableOutputFormatterInterface) {
-            throw new \LogicException(sprintf('Setting a maximum column width is only supported when using a "%s" formatter, got "%s".', WrappableOutputFormatterInterface::class, get_debug_type($this->output->getFormatter())));
+            throw new \LogicException(\sprintf('Setting a maximum column width is only supported when using a "%s" formatter, got "%s".', WrappableOutputFormatterInterface::class, get_debug_type($this->output->getFormatter())));
         }
 
         $this->columnMaxWidths[$columnIndex] = $width;
@@ -177,7 +179,7 @@ class Table
     public function setHeaders(array $headers): static
     {
         $headers = array_values($headers);
-        if (!empty($headers) && !\is_array($headers[0])) {
+        if ($headers && !\is_array($headers[0])) {
             $headers = [$headers];
         }
 
@@ -186,7 +188,10 @@ class Table
         return $this;
     }
 
-    public function setRows(array $rows)
+    /**
+     * @return $this
+     */
+    public function setRows(array $rows): static
     {
         $this->rows = [];
 
@@ -229,7 +234,7 @@ class Table
     public function appendRow(TableSeparator|array $row): static
     {
         if (!$this->output instanceof ConsoleSectionOutput) {
-            throw new RuntimeException(sprintf('Output should be an instance of "%s" when calling "%s".', ConsoleSectionOutput::class, __METHOD__));
+            throw new RuntimeException(\sprintf('Output should be an instance of "%s" when calling "%s".', ConsoleSectionOutput::class, __METHOD__));
         }
 
         if ($this->rendered) {
@@ -277,7 +282,17 @@ class Table
      */
     public function setHorizontal(bool $horizontal = true): static
     {
-        $this->horizontal = $horizontal;
+        $this->displayOrientation = $horizontal ? self::DISPLAY_ORIENTATION_HORIZONTAL : self::DISPLAY_ORIENTATION_DEFAULT;
+
+        return $this;
+    }
+
+    /**
+     * @return $this
+     */
+    public function setVertical(bool $vertical = true): static
+    {
+        $this->displayOrientation = $vertical ? self::DISPLAY_ORIENTATION_VERTICAL : self::DISPLAY_ORIENTATION_DEFAULT;
 
         return $this;
     }
@@ -295,11 +310,16 @@ class Table
      *     | 960-425-059-0 | The Lord of the Rings | J. R. R. Tolkien |
      *     +---------------+-----------------------+------------------+
      */
-    public function render()
+    public function render(): void
     {
         $divider = new TableSeparator();
-        if ($this->horizontal) {
-            $rows = [];
+        $isCellWithColspan = static fn ($cell) => $cell instanceof TableCell && $cell->getColspan() >= 2;
+
+        $horizontal = self::DISPLAY_ORIENTATION_HORIZONTAL === $this->displayOrientation;
+        $vertical = self::DISPLAY_ORIENTATION_VERTICAL === $this->displayOrientation;
+
+        $rows = [];
+        if ($horizontal) {
             foreach ($this->headers[0] ?? [] as $i => $header) {
                 $rows[$i] = [$header];
                 foreach ($this->rows as $row) {
@@ -308,10 +328,59 @@ class Table
                     }
                     if (isset($row[$i])) {
                         $rows[$i][] = $row[$i];
-                    } elseif ($rows[$i][0] instanceof TableCell && $rows[$i][0]->getColspan() >= 2) {
+                    } elseif ($isCellWithColspan($rows[$i][0])) {
                         // Noop, there is a "title"
                     } else {
                         $rows[$i][] = null;
+                    }
+                }
+            }
+        } elseif ($vertical) {
+            $formatter = $this->output->getFormatter();
+            $maxHeaderLength = array_reduce($this->headers[0] ?? [], static fn ($max, $header) => max($max, Helper::width(Helper::removeDecoration($formatter, $header))), 0);
+
+            foreach ($this->rows as $row) {
+                if ($row instanceof TableSeparator) {
+                    continue;
+                }
+
+                if ($rows) {
+                    $rows[] = [$divider];
+                }
+
+                $containsColspan = false;
+                foreach ($row as $cell) {
+                    if ($containsColspan = $isCellWithColspan($cell)) {
+                        break;
+                    }
+                }
+
+                $headers = $this->headers[0] ?? [];
+                $maxRows = max(\count($headers), \count($row));
+                for ($i = 0; $i < $maxRows; ++$i) {
+                    $cell = (string) ($row[$i] ?? '');
+
+                    $eol = str_contains($cell, "\r\n") ? "\r\n" : "\n";
+                    $parts = explode($eol, $cell);
+                    foreach ($parts as $idx => $part) {
+                        if ($headers && !$containsColspan) {
+                            if (0 === $idx) {
+                                $rows[] = [\sprintf(
+                                    '<comment>%s%s</>: %s',
+                                    str_repeat(' ', $maxHeaderLength - Helper::width(Helper::removeDecoration($formatter, $headers[$i] ?? ''))),
+                                    $headers[$i] ?? '',
+                                    $part
+                                )];
+                            } else {
+                                $rows[] = [\sprintf(
+                                    '%s  %s',
+                                    str_pad('', $maxHeaderLength, ' ', \STR_PAD_LEFT),
+                                    $part
+                                )];
+                            }
+                        } elseif ('' !== $cell) {
+                            $rows[] = [$part];
+                        }
                     }
                 }
             }
@@ -324,9 +393,11 @@ class Table
         $rowGroups = $this->buildTableRows($rows);
         $this->calculateColumnsWidth($rowGroups);
 
-        $isHeader = !$this->horizontal;
-        $isFirstRow = $this->horizontal;
+        $isHeader = !$horizontal;
+        $isFirstRow = $horizontal;
         $hasTitle = (bool) $this->headerTitle;
+        $previousRow = null;
+        $pendingSeparators = 0;
 
         foreach ($rowGroups as $rowGroup) {
             $isHeaderSeparatorRendered = false;
@@ -340,7 +411,8 @@ class Table
                 }
 
                 if ($row instanceof TableSeparator) {
-                    $this->renderRowSeparator();
+                    // defer rendering until the row below is known, to align crossings with it
+                    ++$pendingSeparators;
 
                     continue;
                 }
@@ -349,11 +421,17 @@ class Table
                     continue;
                 }
 
-                if ($isHeader && !$isHeaderSeparatorRendered) {
+                for (; $pendingSeparators > 0; --$pendingSeparators) {
+                    $this->renderRowSeparator(self::SEPARATOR_MID, null, null, $previousRow, $row);
+                }
+
+                if ($isHeader && !$isHeaderSeparatorRendered && $this->style->displayOutsideBorder()) {
                     $this->renderRowSeparator(
-                        $isHeader ? self::SEPARATOR_TOP : self::SEPARATOR_TOP_BOTTOM,
+                        self::SEPARATOR_TOP,
                         $hasTitle ? $this->headerTitle : null,
-                        $hasTitle ? $this->style->getHeaderTitleFormat() : null
+                        $hasTitle ? $this->style->getHeaderTitleFormat() : null,
+                        null,
+                        $row
                     );
                     $hasTitle = false;
                     $isHeaderSeparatorRendered = true;
@@ -361,22 +439,38 @@ class Table
 
                 if ($isFirstRow) {
                     $this->renderRowSeparator(
-                        $isHeader ? self::SEPARATOR_TOP : self::SEPARATOR_TOP_BOTTOM,
+                        $horizontal || !array_filter($this->headers) ? self::SEPARATOR_TOP : self::SEPARATOR_TOP_BOTTOM,
                         $hasTitle ? $this->headerTitle : null,
-                        $hasTitle ? $this->style->getHeaderTitleFormat() : null
+                        $hasTitle ? $this->style->getHeaderTitleFormat() : null,
+                        $previousRow,
+                        $row
                     );
                     $isFirstRow = false;
                     $hasTitle = false;
                 }
 
-                if ($this->horizontal) {
+                if ($vertical) {
+                    $isHeader = false;
+                    $isFirstRow = false;
+                }
+
+                if ($horizontal) {
                     $this->renderRow($row, $this->style->getCellRowFormat(), $this->style->getCellHeaderFormat());
                 } else {
                     $this->renderRow($row, $isHeader ? $this->style->getCellHeaderFormat() : $this->style->getCellRowFormat());
                 }
+
+                $previousRow = $row;
             }
         }
-        $this->renderRowSeparator(self::SEPARATOR_BOTTOM, $this->footerTitle, $this->style->getFooterTitleFormat());
+
+        for (; $pendingSeparators > 0; --$pendingSeparators) {
+            $this->renderRowSeparator(self::SEPARATOR_MID, null, null, $previousRow);
+        }
+
+        if ($this->getStyle()->displayOutsideBorder()) {
+            $this->renderRowSeparator(self::SEPARATOR_BOTTOM, $this->footerTitle, $this->style->getFooterTitleFormat(), $previousRow);
+        }
 
         $this->cleanup();
         $this->rendered = true;
@@ -389,9 +483,9 @@ class Table
      *
      *     +-----+-----------+-------+
      */
-    private function renderRowSeparator(int $type = self::SEPARATOR_MID, string $title = null, string $titleFormat = null)
+    private function renderRowSeparator(int $type = self::SEPARATOR_MID, ?string $title = null, ?string $titleFormat = null, ?array $rowAbove = null, ?array $rowBelow = null): void
     {
-        if (0 === $count = $this->numberOfColumns) {
+        if (!$count = $this->numberOfColumns) {
             return;
         }
 
@@ -411,19 +505,42 @@ class Table
             [$horizontal, $leftChar, $midChar, $rightChar] = [$borders[0], $crossings[7], $crossings[6], $crossings[5]];
         }
 
+        // only draw a crossing where a vertical border meets the separator; a cell
+        // spanning several columns has no border on the columns it covers
+        $hasLineAbove = self::SEPARATOR_TOP !== $type;
+        $hasLineBelow = self::SEPARATOR_BOTTOM !== $type;
+        $columnsAbove = null !== $rowAbove ? $this->getRowColumns($rowAbove) : null;
+        $columnsBelow = null !== $rowBelow ? $this->getRowColumns($rowBelow) : null;
+
         $markup = $leftChar;
         for ($column = 0; $column < $count; ++$column) {
             $markup .= str_repeat($horizontal, $this->effectiveColumnWidths[$column]);
-            $markup .= $column === $count - 1 ? $rightChar : $midChar;
+            if ($column === $count - 1) {
+                $markup .= $rightChar;
+
+                continue;
+            }
+
+            $borderAbove = $hasLineAbove && (null === $columnsAbove || \in_array($column + 1, $columnsAbove, true));
+            $borderBelow = $hasLineBelow && (null === $columnsBelow || \in_array($column + 1, $columnsBelow, true));
+            // the one-sided junctions reuse the top/bottom crossing chars; for the "box-double"
+            // style these are double-horizontal (╤/╧) while an inner separator is single (─), as
+            // that style has no single-line ┬/┴ to fall back to
+            $markup .= match (true) {
+                $borderAbove && $borderBelow => $midChar,
+                $borderBelow => $crossings[2],
+                $borderAbove => $crossings[6],
+                default => $horizontal,
+            };
         }
 
         if (null !== $title) {
-            $titleLength = Helper::width(Helper::removeDecoration($formatter = $this->output->getFormatter(), $formattedTitle = sprintf($titleFormat, $title)));
+            $titleLength = Helper::width(Helper::removeDecoration($formatter = $this->output->getFormatter(), $formattedTitle = \sprintf($titleFormat, $title)));
             $markupLength = Helper::width($markup);
             if ($titleLength > $limit = $markupLength - 4) {
                 $titleLength = $limit;
-                $formatLength = Helper::width(Helper::removeDecoration($formatter, sprintf($titleFormat, '')));
-                $formattedTitle = sprintf($titleFormat, Helper::substr($title, 0, $limit - $formatLength - 3).'...');
+                $formatLength = Helper::width(Helper::removeDecoration($formatter, \sprintf($titleFormat, '')));
+                $formattedTitle = \sprintf($titleFormat, Helper::substr($title, 0, $limit - $formatLength - 3).'...');
             }
 
             $titleStart = intdiv($markupLength - $titleLength, 2);
@@ -434,7 +551,7 @@ class Table
             }
         }
 
-        $this->output->writeln(sprintf($this->style->getBorderFormat(), $markup));
+        $this->output->writeln(\sprintf($this->style->getBorderFormat(), $markup));
     }
 
     /**
@@ -444,7 +561,7 @@ class Table
     {
         $borders = $this->style->getBorderChars();
 
-        return sprintf($this->style->getBorderFormat(), self::BORDER_OUTSIDE === $type ? $borders[1] : $borders[3]);
+        return \sprintf($this->style->getBorderFormat(), self::BORDER_OUTSIDE === $type ? $borders[1] : $borders[3]);
     }
 
     /**
@@ -454,11 +571,11 @@ class Table
      *
      *     | 9971-5-0210-0 | A Tale of Two Cities  | Charles Dickens  |
      */
-    private function renderRow(array $row, string $cellFormat, string $firstCellFormat = null)
+    private function renderRow(array $row, string $cellFormat, ?string $firstCellFormat = null): void
     {
         $rowContent = $this->renderColumnSeparator(self::BORDER_OUTSIDE);
         $columns = $this->getRowColumns($row);
-        $last = \count($columns) - 1;
+        $last = array_key_last($columns);
         foreach ($columns as $i => $column) {
             if ($firstCellFormat && 0 === $i) {
                 $rowContent .= $this->renderCell($row, $column, $firstCellFormat);
@@ -485,18 +602,15 @@ class Table
         }
 
         // str_pad won't work properly with multi-byte strings, we need to fix the padding
-        if (false !== $encoding = mb_detect_encoding($cell, null, true)) {
-            $width += \strlen($cell) - mb_strwidth($cell, $encoding);
-        }
-
+        $width += \strlen($cell) - Helper::width($cell) - substr_count($cell, "\0");
         $style = $this->getColumnStyle($column);
 
         if ($cell instanceof TableSeparator) {
-            return sprintf($style->getBorderFormat(), str_repeat($style->getBorderChars()[2], $width));
+            return \sprintf($style->getBorderFormat(), str_repeat($style->getBorderChars()[2], $width));
         }
 
         $width += Helper::length($cell) - Helper::length(Helper::removeDecoration($this->output->getFormatter(), $cell));
-        $content = sprintf($style->getCellRowContentFormat(), $cell);
+        $content = \sprintf($style->getCellRowContentFormat(), $cell);
 
         $padType = $style->getPadType();
         if ($cell instanceof TableCell && $cell->getStyle() instanceof TableCellStyle) {
@@ -508,11 +622,11 @@ class Table
                     $cellFormat = '<'.$tag.'>%s</>';
                 }
 
-                if (strstr($content, '</>')) {
+                if (str_contains($content, '</>')) {
                     $content = str_replace('</>', '', $content);
                     $width -= 3;
                 }
-                if (strstr($content, '<fg=default;bg=default>')) {
+                if (str_contains($content, '<fg=default;bg=default>')) {
                     $content = str_replace('<fg=default;bg=default>', '', $content);
                     $width -= \strlen('<fg=default;bg=default>');
                 }
@@ -521,13 +635,13 @@ class Table
             $padType = $cell->getStyle()->getPadByAlign();
         }
 
-        return sprintf($cellFormat, str_pad($content, $width, $style->getPaddingChar(), $padType));
+        return \sprintf($cellFormat, str_pad($content, $width, $style->getPaddingChar(), $padType));
     }
 
     /**
      * Calculate number of columns for this table.
      */
-    private function calculateNumberOfColumns(array $rows)
+    private function calculateNumberOfColumns(array $rows): void
     {
         $columns = [0];
         foreach ($rows as $row) {
@@ -553,15 +667,56 @@ class Table
             foreach ($rows[$rowKey] as $column => $cell) {
                 $colspan = $cell instanceof TableCell ? $cell->getColspan() : 1;
 
-                if (isset($this->columnMaxWidths[$column]) && Helper::width(Helper::removeDecoration($formatter, $cell)) > $this->columnMaxWidths[$column]) {
-                    $cell = $formatter->formatAndWrap($cell, $this->columnMaxWidths[$column] * $colspan);
+                $minWrappedWidth = 0;
+                $widthApplied = [];
+                $lengthColumnBorder = $this->getColumnSeparatorWidth() + Helper::width($this->style->getCellRowContentFormat()) - 2;
+                for ($i = $column; $i < ($column + $colspan); ++$i) {
+                    if (isset($this->columnMaxWidths[$i])) {
+                        $minWrappedWidth += $this->columnMaxWidths[$i];
+                        $widthApplied[] = ['type' => 'max', 'column' => $i];
+                    } elseif (($this->columnWidths[$i] ?? 0) > 0 && $colspan > 1) {
+                        $minWrappedWidth += $this->columnWidths[$i];
+                        $widthApplied[] = ['type' => 'min', 'column' => $i];
+                    }
                 }
-                if (!strstr($cell ?? '', "\n")) {
+                if (1 === \count($widthApplied)) {
+                    if ($colspan > 1) {
+                        $minWrappedWidth *= $colspan;  // previous logic
+                    }
+                } elseif (\count($widthApplied) > 1) {
+                    $minWrappedWidth += (\count($widthApplied) - 1) * $lengthColumnBorder;
+                }
+
+                $cellWidth = Helper::width(Helper::removeDecoration($formatter, $cell));
+                if ($minWrappedWidth && $cellWidth > $minWrappedWidth) {
+                    $cell = $formatter->formatAndWrap($cell, $minWrappedWidth);
+                }
+                // update minimal columnWidths for spanned columns
+                if ($colspan > 1 && $minWrappedWidth > 0) {
+                    $columnsMinWidthProcessed = [];
+                    $cellWidth = min($cellWidth, $minWrappedWidth);
+                    foreach ($widthApplied as $item) {
+                        if ('max' === $item['type'] && $cellWidth >= $this->columnMaxWidths[$item['column']]) {
+                            $minWidthColumn = $this->columnMaxWidths[$item['column']];
+                            $this->columnWidths[$item['column']] = $minWidthColumn;
+                            $columnsMinWidthProcessed[$item['column']] = true;
+                            $cellWidth -= $minWidthColumn + $lengthColumnBorder;
+                        }
+                    }
+                    for ($i = $column; $i < ($column + $colspan); ++$i) {
+                        if (isset($columnsMinWidthProcessed[$i])) {
+                            continue;
+                        }
+                        $this->columnWidths[$i] = $cellWidth + $lengthColumnBorder;
+                    }
+                }
+                if (!str_contains($cell ?? '', "\n")) {
                     continue;
                 }
-                $escaped = implode("\n", array_map([OutputFormatter::class, 'escapeTrailingBackslash'], explode("\n", $cell)));
+                $eol = str_contains($cell ?? '', "\r\n") ? "\r\n" : "\n";
+                $escaped = implode($eol, array_map(OutputFormatter::escapeTrailingBackslash(...), explode($eol, $cell)));
                 $cell = $cell instanceof TableCell ? new TableCell($escaped, ['colspan' => $cell->getColspan()]) : $escaped;
-                $lines = explode("\n", str_replace("\n", "<fg=default;bg=default></>\n", $cell));
+                $lines = explode($eol, str_replace($eol, '<fg=default;bg=default></>'.$eol, $cell));
                 foreach ($lines as $lineKey => $line) {
                     if ($colspan > 1) {
                         $line = new TableCell($line, ['colspan' => $colspan]);
@@ -600,7 +755,7 @@ class Table
             ++$numberOfRows; // Add row for header separator
         }
 
-        if (\count($this->rows) > 0) {
+        if ($this->rows) {
             ++$numberOfRows; // Add row for footer separator
         }
 
@@ -617,14 +772,15 @@ class Table
         $unmergedRows = [];
         foreach ($rows[$line] as $column => $cell) {
             if (null !== $cell && !$cell instanceof TableCell && !\is_scalar($cell) && !$cell instanceof \Stringable) {
-                throw new InvalidArgumentException(sprintf('A cell must be a TableCell, a scalar or an object implementing "__toString()", "%s" given.', get_debug_type($cell)));
+                throw new InvalidArgumentException(\sprintf('A cell must be a TableCell, a scalar or an object implementing "__toString()", "%s" given.', get_debug_type($cell)));
             }
             if ($cell instanceof TableCell && $cell->getRowspan() > 1) {
                 $nbLines = $cell->getRowspan() - 1;
                 $lines = [$cell];
-                if (strstr($cell, "\n")) {
-                    $lines = explode("\n", str_replace("\n", "<fg=default;bg=default>\n</>", $cell));
-                    $nbLines = \count($lines) > $nbLines ? substr_count($cell, "\n") : $nbLines;
+                if (str_contains($cell, "\n")) {
+                    $eol = str_contains($cell, "\r\n") ? "\r\n" : "\n";
+                    $lines = explode($eol, str_replace($eol, '<fg=default;bg=default>'.$eol.'</>', $cell));
+                    $nbLines = \count($lines) > $nbLines ? substr_count($cell, $eol) : $nbLines;
 
                     $rows[$line][$column] = new TableCell($lines[0], ['colspan' => $cell->getColspan(), 'style' => $cell->getStyle()]);
                     unset($lines[0]);
@@ -644,7 +800,7 @@ class Table
 
         foreach ($unmergedRows as $unmergedRowKey => $unmergedRow) {
             // we need to know if $unmergedRow will be merged or inserted into $rows
-            if (isset($rows[$unmergedRowKey]) && \is_array($rows[$unmergedRowKey]) && ($this->getNumberOfColumns($rows[$unmergedRowKey]) + $this->getNumberOfColumns($unmergedRows[$unmergedRowKey]) <= $this->numberOfColumns)) {
+            if (isset($rows[$unmergedRowKey]) && \is_array($rows[$unmergedRowKey]) && ($this->getNumberOfColumns($rows[$unmergedRowKey]) + $this->getNumberOfColumns($unmergedRow) <= $this->numberOfColumns)) {
                 foreach ($unmergedRow as $cellKey => $cell) {
                     // insert cell into row at cellKey position
                     array_splice($rows[$unmergedRowKey], $cellKey, 0, [$cell]);
@@ -652,8 +808,8 @@ class Table
             } else {
                 $row = $this->copyRow($rows, $unmergedRowKey - 1);
                 foreach ($unmergedRow as $column => $cell) {
-                    if (!empty($cell)) {
-                        $row[$column] = $unmergedRow[$column];
+                    if ($cell) {
+                        $row[$column] = $cell;
                     }
                 }
                 array_splice($rows, $unmergedRowKey, 0, [$row]);
@@ -666,7 +822,7 @@ class Table
     /**
      * fill cells for a row that contains colspan > 1.
      */
-    private function fillCells(iterable $row)
+    private function fillCells(iterable $row): iterable
     {
         $newRow = [];
 
@@ -728,49 +884,62 @@ class Table
     /**
      * Calculates columns widths.
      */
-    private function calculateColumnsWidth(iterable $groups)
+    private function calculateColumnsWidth(iterable $groups): void
     {
-        for ($column = 0; $column < $this->numberOfColumns; ++$column) {
-            $lengths = [];
-            foreach ($groups as $group) {
-                foreach ($group as $row) {
-                    if ($row instanceof TableSeparator) {
-                        continue;
-                    }
+        $formatter = $this->output->getFormatter();
 
-                    foreach ($row as $i => $cell) {
-                        if ($cell instanceof TableCell) {
-                            $textContent = Helper::removeDecoration($this->output->getFormatter(), $cell);
-                            $textLength = Helper::width($textContent);
-                            if ($textLength > 0) {
-                                $contentColumns = str_split($textContent, ceil($textLength / $cell->getColspan()));
-                                foreach ($contentColumns as $position => $content) {
-                                    $row[$i + $position] = $content;
-                                }
+        // Initialize max widths for all columns
+        $maxColumnWidths = array_fill(0, $this->numberOfColumns, 0);
+
+        // Single pass through all rows to calculate all column widths at once
+        foreach ($groups as $group) {
+            foreach ($group as $row) {
+                if ($row instanceof TableSeparator) {
+                    continue;
+                }
+
+                // Process TableCell colspan splitting once per row
+                foreach ($row as $i => $cell) {
+                    if ($cell instanceof TableCell && $cell->getColspan() > 1) {
+                        $textContent = Helper::removeDecoration($formatter, $cell);
+                        $textLength = Helper::width($textContent);
+                        if ($textLength > 0) {
+                            $contentColumns = mb_str_split($textContent, (int) ceil($textLength / $cell->getColspan()));
+                            foreach ($contentColumns as $position => $content) {
+                                $row[$i + $position] = $content;
                             }
                         }
                     }
+                }
 
-                    $lengths[] = $this->getCellWidth($row, $column);
+                // Calculate width for each column in this row
+                for ($column = 0; $column < $this->numberOfColumns; ++$column) {
+                    $cellWidth = $this->getCellWidth($row, $column, $formatter);
+                    if ($cellWidth > $maxColumnWidths[$column]) {
+                        $maxColumnWidths[$column] = $cellWidth;
+                    }
                 }
             }
+        }
 
-            $this->effectiveColumnWidths[$column] = max($lengths) + Helper::width($this->style->getCellRowContentFormat()) - 2;
+        $cellContentFormatWidth = Helper::width($this->style->getCellRowContentFormat()) - 2;
+        for ($column = 0; $column < $this->numberOfColumns; ++$column) {
+            $this->effectiveColumnWidths[$column] = $maxColumnWidths[$column] + $cellContentFormatWidth;
         }
     }
 
     private function getColumnSeparatorWidth(): int
     {
-        return Helper::width(sprintf($this->style->getBorderFormat(), $this->style->getBorderChars()[3]));
+        return Helper::width(\sprintf($this->style->getBorderFormat(), $this->style->getBorderChars()[3]));
     }
 
-    private function getCellWidth(array $row, int $column): int
+    private function getCellWidth(array $row, int $column, OutputFormatterInterface $formatter): int
     {
         $cellWidth = 0;
 
         if (isset($row[$column])) {
             $cell = $row[$column];
-            $cellWidth = Helper::width(Helper::removeDecoration($this->output->getFormatter(), $cell));
+            $cellWidth = Helper::width(Helper::removeDecoration($formatter, $cell));
         }
 
         $columnWidth = $this->columnWidths[$column] ?? 0;
@@ -782,7 +951,7 @@ class Table
     /**
      * Called after rendering to cleanup cache data.
      */
-    private function cleanup()
+    private function cleanup(): void
     {
         $this->effectiveColumnWidths = [];
         unset($this->numberOfColumns);
@@ -793,6 +962,12 @@ class Table
      */
     private static function initStyles(): array
     {
+        $markdown = new TableStyle();
+        $markdown
+            ->setDefaultCrossingChar('|')
+            ->setDisplayOutsideBorder(false)
+        ;
+
         $borderless = new TableStyle();
         $borderless
             ->setHorizontalBorderChars('=')
@@ -830,6 +1005,7 @@ class Table
 
         return [
             'default' => new TableStyle(),
+            'markdown' => $markdown,
             'borderless' => $borderless,
             'compact' => $compact,
             'symfony-style-guide' => $styleGuide,
@@ -844,6 +1020,6 @@ class Table
             return $name;
         }
 
-        return self::$styles[$name] ?? throw new InvalidArgumentException(sprintf('Style "%s" is not defined.', $name));
+        return self::$styles[$name] ?? throw new InvalidArgumentException(\sprintf('Style "%s" is not defined.', $name));
     }
 }
