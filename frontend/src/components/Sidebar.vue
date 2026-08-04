@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
 const props = defineProps({
@@ -14,12 +14,35 @@ const route = useRoute()
 
 const accountDropOpen = ref(false)
 
+const user = ref({ nama: 'Admin', email: '', role: 'Administrator' })
+
+onMounted(() => {
+  const storedUser = localStorage.getItem('user')
+  if (storedUser) {
+    try {
+      user.value = JSON.parse(storedUser)
+    } catch (e) {}
+  }
+})
+
+const getInitials = (name) => {
+  if (!name) return 'A'
+  return name.substring(0, 2).toUpperCase()
+}
+
 const toggleAccountDrop = () => {
   accountDropOpen.value = !accountDropOpen.value
 }
 
 const closeAccountDrop = () => {
   accountDropOpen.value = false
+}
+
+const handleLogout = () => {
+  localStorage.removeItem('token')
+  localStorage.removeItem('user')
+  closeAccountDrop()
+  window.location.href = '/login'
 }
 
 const navigate = (path) => {
@@ -56,7 +79,7 @@ const navigate = (path) => {
         <i class="fa-solid fa-users nav-icon"></i>
         <span class="nav-label">Pelanggan</span>
       </div>
-      <div class="nav-item" :class="{ active: route.path === '/users' }" @click="navigate('/users')">
+      <div v-if="user.role === 'admin'" class="nav-item" :class="{ active: route.path === '/users' }" @click="navigate('/users')">
         <i class="fa-solid fa-user-shield nav-icon"></i>
         <span class="nav-label">Users & Akses</span>
       </div>
@@ -78,21 +101,24 @@ const navigate = (path) => {
 
     <div class="sidebar-footer">
       <div class="account-btn" @click="toggleAccountDrop">
-        <div class="avatar avatar-admin">AR</div>
+        <div class="avatar avatar-admin">{{ getInitials(user.nama) }}</div>
         <div class="account-info">
-          <div class="account-name">Agus Risky</div>
-          <div class="account-role">Administrator</div>
+          <div class="account-name">{{ user.nama }}</div>
+          <div class="account-role">{{ user.role || 'Administrator' }}</div>
         </div>
         <i class="fa-solid fa-chevron-up account-caret"></i>
       </div>
 
       <div class="account-dropdown" :class="{ open: accountDropOpen }">
         <div class="dropdown-header">
-          <div class="dh-name">Agus Risky</div>
-          <div class="dh-email">agusrisky@rentalken.id</div>
+          <div class="dh-name">{{ user.nama }}</div>
+          <div class="dh-email">{{ user.email }}</div>
         </div>
         <div class="dropdown-section">
-          <div class="dd-item danger" @click="closeAccountDrop">
+          <div class="dd-item" @click="handleLogout">
+            <i class="fa-solid fa-users-gear"></i> Ganti Akun
+          </div>
+          <div class="dd-item danger" @click="handleLogout">
             <i class="fa-solid fa-arrow-right-from-bracket"></i> Keluar
           </div>
         </div>

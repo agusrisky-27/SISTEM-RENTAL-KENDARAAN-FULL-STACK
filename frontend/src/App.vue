@@ -1,9 +1,15 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
 import Topbar from './components/Topbar.vue'
 import ToastContainer from './components/ToastContainer.vue'
 import api from './api'
+
+const route = useRoute()
+const router = useRouter()
+
+const isLoginPage = computed(() => route.path === '/login')
 
 const sidebarCollapsed = ref(false)
 const mobileSidebarOpen = ref(false)
@@ -25,25 +31,7 @@ const closeMobileSidebar = () => {
   mobileSidebarOpen.value = false
 }
 
-const performAutoLogin = async () => {
-  try {
-    const res = await api.post('/login', { email: 'agusrisky@rentalken.id', password: 'password123' })
-    localStorage.setItem('token', res.data.data.token)
-  } catch (err) {
-    // If login fails, try to register
-    try {
-      await api.post('/register', { nama: 'Agus Risky', email: 'agusrisky@rentalken.id', password: 'password123', role: 'admin' })
-      const res2 = await api.post('/login', { email: 'agusrisky@rentalken.id', password: 'password123' })
-      localStorage.setItem('token', res2.data.data.token)
-    } catch (regErr) {
-      console.error('Auto register/login failed', regErr)
-    }
-  }
-}
-
 onMounted(() => {
-  performAutoLogin()
-  
   const saved = localStorage.getItem('theme')
   if (saved) {
     document.documentElement.setAttribute('data-theme', saved)
@@ -54,21 +42,26 @@ onMounted(() => {
 </script>
 
 <template>
-  <div id="sidebar-overlay" :class="{ visible: mobileSidebarOpen }" @click="closeMobileSidebar"></div>
-  
-  <Sidebar 
-    :collapsed="sidebarCollapsed" 
-    :mobileOpen="mobileSidebarOpen" 
-    @toggle="toggleSidebar"
-    @close-mobile="closeMobileSidebar"
-  />
+  <div v-if="!isLoginPage">
+    <div id="sidebar-overlay" :class="{ visible: mobileSidebarOpen }" @click="closeMobileSidebar"></div>
+    
+    <Sidebar 
+      :collapsed="sidebarCollapsed" 
+      :mobileOpen="mobileSidebarOpen" 
+      @toggle="toggleSidebar"
+      @close-mobile="closeMobileSidebar"
+    />
 
-  <main class="main">
-    <Topbar @open-mobile-sidebar="openMobileSidebar" />
-    <div class="content">
-      <router-view />
-    </div>
-  </main>
+    <main class="main">
+      <Topbar @open-mobile-sidebar="openMobileSidebar" />
+      <div class="content">
+        <router-view />
+      </div>
+    </main>
+  </div>
+  <div v-else>
+    <router-view />
+  </div>
   
   <ToastContainer />
 </template>
