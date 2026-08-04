@@ -1,0 +1,111 @@
+<?php
+    namespace App\Controller;
+
+    use App\Entity\Pembayaran;
+    use App\Entity\Transaksi;
+
+    class PembayaranController extends BaseController {
+        public function index(): void {
+            $this->auth();
+            $data = array_map(
+                fn ($pembayaran) => $pembayaran->toArray(),
+                $this->em->getRepository(Pembayaran::class)->findAll()
+            );
+            $this->ok($data);
+        }
+
+        public function show(int $id): void {
+            $this->auth();
+            $pembayaran = $this->em->find(Pembayaran::class, $id) ?? $this->fail('Tidak ditemukan', 404);
+            $this->ok($pembayaran->toArray());
+        }
+
+        public function store(): void {
+            $this->auth();
+            $b = $this->body();
+            $items = isset($b[0]) ? $b : [$b];
+            $entities = [];
+
+            foreach ($items as $item) {
+                $transaksi = $this->em->find(Transaksi::class, $item['id_transaksi'])
+                    ?? $this->fail('Transaksi tidak ada', 404);
+
+                if ($transaksi->getStatus() !== 'aktif') {
+                    $this->fail("Transaksi {$item['id_transaksi']} tidak aktif", 422);
+                }
+                if ((float) $item['jumlah'] < (float) $transaksi->getTotalHarga()) {
+                    $this->fail('Jumlah kurang', 422);
+                }
+
+                $pembayaran = new Pembayaran();
+                $pembayaran->setTransaksi($transaksi);
+                $pembayaran->setTanggalBayar(new \DateTime($item['tanggal_bayar']));
+                $pembayaran->setJumlah((string) $item['jumlah']);
+                $pembayaran->setMetode($item['metode_pembayaran']);
+                $pembayaran->setStatus('lunas');
+
+                // Setelah pembayaran, transaksi menunggu proses pengembalian
+                $transaksi->setStatus('menunggu_pengembalian');
+
+                // Hitung kembalian (lebih bayar)
+                $kembalian = (float) $item['jumlah'] - (float) $transaksi->getTotalHarga();
+
+                $this->em->persist($pembayaran);
+                $entities[] = ['pembayaran' => $pembayaran, 'kembalian' => $kembalian];
+            }
+
+            $this->em->flush();
+            $result = [];
+            foreach ($entities as $row) {
+                $pembayaran = $row['pembayaran'];
+                $this->em->refresh($pembayaran);
+                $arr = $pembayaran->toArray();
+                $arr['kembalian'] = $row['kembalian'];
+                $result[] = $arr;
+            }
+
+            $this->ok($result, count($result) . ' pembayaran berhasil', 201);
+        }
+
+        public function update(int $id): void {
+            $this->auth();
+            $pembayaran = $this->em->find(Pembayaran::class, $id) ?? $this->fail('Tidak ditemukan', 404);
+            $b = $this->body();
+
+            if (isset($b['id_transaksi'])) {
+                $transaksi = $this->em->find(Transaksi::class, $b['id_transaksi'])
+                    ?? $this->fail('Transaksi tidak ada', 404);
+                $pembayaran->setTransaksi($transaksi);
+            }
+            if (isset($b['tanggal_bayar'])) {
+                $pembayaran->setTanggalBayar(new \DateTime($b['tanggal_bayar']));
+            }
+            if (isset($b['jumlah'])) {
+                $pembayaran->setJumlah((string) $b['jumlah']);
+            }
+            if (isset($b['metode_pembayaran'])) {
+                $pembayaran->setMetode($b['metode_pembayaran']);
+            }
+            if (isset($b['status'])) {
+                $pembayaran->setStatus($b['status']);
+            }
+
+            $this->em->flush();
+            $this->ok($pembayaran->toArray(), 'Pembayaran diupdate');
+        }
+
+        public function delete(int $id): void {
+            $this->auth();
+            $pembayaran = $this->em->find(Pembayaran::class, $id) ?? $this->fail('Tidak ditemukan', 404);
+
+            $transaksi = $pembayaran->getTransaksi();
+            if ($transaksi && $transaksi->getStatus() === 'menunggu_pengembalian') {
+                $transaksi->setStatus('aktif');
+            }
+
+            $this->em->remove($pembayaran);
+            $this->em->flush();
+            $this->ok(null, 'Pembayaran dihapus');
+        }
+    }
+?>
