@@ -23,7 +23,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/pelanggan/{id}', [PelangganController::class, 'destroy']);
         Route::delete('/transaksi/{id}', [TransaksiController::class, 'destroy']);
         
-        // Users routes...
+        Route::apiResource('users', \App\Http\Controllers\Api\UserController::class)->except(['show']);
     });
 
     // Public / Staff Routes (GET, and certain POST/PUT)
@@ -34,5 +34,6 @@ Route::middleware('auth:sanctum')->group(function () {
     
     Route::apiResource('transaksi', TransaksiController::class)->except(['destroy']);
     
-    // Pengembalian, Pembayaran, dsb...
+    Route::apiResource('pengembalian', \App\Http\Controllers\Api\PengembalianController::class)->only(['index', 'store', 'destroy']);
+    Route::apiResource('pembayaran', \App\Http\Controllers\Api\PembayaranController::class)->only(['index', 'store', 'destroy']);
 });
