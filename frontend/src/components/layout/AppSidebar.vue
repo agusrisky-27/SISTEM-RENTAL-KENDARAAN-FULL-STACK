@@ -1,39 +1,36 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '../../stores/auth';
-import { 
-  HomeIcon, 
-  TruckIcon, 
-  UsersIcon, 
-  ClipboardDocumentListIcon, 
-  ArrowPathRoundedSquareIcon,
-  BanknotesIcon,
-  XMarkIcon
-} from '@heroicons/vue/24/outline';
+import { Menu, MenuButton, MenuItems, MenuItem } from '@headlessui/vue';
 
 const props = defineProps({
   isOpen: Boolean,
+  isCollapsed: Boolean
 });
 
-const emit = defineEmits(['close']);
+const emit = defineEmits(['close', 'toggle-collapse']);
 
 const route = useRoute();
 const authStore = useAuthStore();
 
 const navItems = [
-  { name: 'Dashboard', path: '/', icon: HomeIcon },
-  { name: 'Kendaraan', path: '/kendaraan', icon: TruckIcon },
-  { name: 'Pelanggan', path: '/pelanggan', icon: UsersIcon },
-  { name: 'Transaksi', path: '/transaksi', icon: ClipboardDocumentListIcon },
-  { name: 'Pengembalian', path: '/pengembalian', icon: ArrowPathRoundedSquareIcon },
-  { name: 'Pembayaran', path: '/pembayaran', icon: BanknotesIcon },
-  { name: 'Users', path: '/users', icon: UsersIcon },
+  { name: 'Dashboard', path: '/', icon: 'chart-pie' },
+  { name: 'Kendaraan', path: '/kendaraan', icon: 'car-side' },
+  { name: 'Pelanggan', path: '/pelanggan', icon: 'users' },
+  { name: 'Transaksi', path: '/transaksi', icon: 'file-contract', badge: 3 },
+  { name: 'Pengembalian', path: '/pengembalian', icon: 'rotate-left' },
+  { name: 'Pembayaran', path: '/pembayaran', icon: 'wallet' },
+  { name: 'Users', path: '/users', icon: 'user-shield' },
 ];
 
 const isCurrentRoute = (path) => {
   if (path === '/') return route.path === '/';
   return route.path.startsWith(path);
+};
+
+const toggleCollapse = () => {
+  emit('toggle-collapse');
 };
 </script>
 
@@ -49,54 +46,122 @@ const isCurrentRoute = (path) => {
     <!-- Sidebar -->
     <aside 
       :class="[
-        'fixed top-0 left-0 z-50 h-screen w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transition-transform duration-300 ease-in-out flex flex-col',
-        isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        'fixed top-0 left-0 z-50 h-screen bg-light-card dark:bg-dark-card border-r border-light-border dark:border-dark-border transition-all duration-300 ease-in-out flex flex-col',
+        isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+        isCollapsed ? 'w-20' : 'w-64'
       ]"
     >
-      <div class="h-16 flex items-center justify-between px-6 border-b border-gray-200 dark:border-gray-800">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-            <TruckIcon class="w-5 h-5 text-white" />
-          </div>
-          <span class="text-lg font-bold text-gray-900 dark:text-white">RentalKu</span>
+      <!-- Logo Section -->
+      <div class="h-16 flex items-center justify-between px-4 border-b border-light-border dark:border-dark-border">
+        <div class="flex flex-col truncate" v-show="!isCollapsed">
+          <span class="text-lg font-heading font-bold text-light-text dark:text-dark-text tracking-tight">Rental Kendaraan</span>
+          <span class="text-xs text-light-muted dark:text-dark-muted font-medium uppercase tracking-wider">Admin Panel</span>
         </div>
-        <button @click="emit('close')" class="lg:hidden p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
-          <XMarkIcon class="w-5 h-5" />
+        <div v-show="isCollapsed" class="w-full flex justify-center text-accent">
+          <font-awesome-icon icon="car-side" class="text-xl" />
+        </div>
+        <button @click="emit('close')" class="lg:hidden p-2 text-light-muted dark:text-dark-muted hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+          <font-awesome-icon icon="times" />
         </button>
       </div>
 
-      <div class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+      <!-- Navigation -->
+      <div class="flex-1 overflow-y-auto py-6 px-3 space-y-1 custom-scrollbar">
         <router-link 
           v-for="item in navItems" 
           :key="item.path" 
           :to="item.path"
-          class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative"
+          class="flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group relative"
           :class="isCurrentRoute(item.path) 
-            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-semibold' 
-            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100'"
+            ? 'bg-accent/10 text-accent font-semibold' 
+            : 'text-light-muted dark:text-dark-muted hover:bg-gray-50 dark:hover:bg-dark-border hover:text-light-text dark:hover:text-dark-text'"
+          :title="isCollapsed ? item.name : ''"
         >
+          <!-- Active Indicator -->
           <div 
             v-if="isCurrentRoute(item.path)"
-            class="absolute left-0 w-1 h-6 bg-blue-600 rounded-r-full"
+            class="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-accent rounded-r-full"
           ></div>
-          <component :is="item.icon" class="w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110" />
-          <span class="text-sm">{{ item.name }}</span>
+          
+          <font-awesome-icon :icon="item.icon" class="w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110" :class="isCollapsed ? 'mx-auto' : ''" />
+          
+          <span v-show="!isCollapsed" class="text-sm tracking-wide flex-1">{{ item.name }}</span>
+          
+          <!-- Badge -->
+          <span v-if="item.badge && !isCollapsed" class="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+            {{ item.badge }}
+          </span>
+          <span v-else-if="item.badge && isCollapsed" class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
         </router-link>
       </div>
 
-      <div class="p-4 border-t border-gray-200 dark:border-gray-800">
-        <div class="flex items-center gap-3 px-3 py-2">
-          <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-md">
-            {{ authStore.user?.username?.charAt(0).toUpperCase() || 'U' }}
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
-              {{ authStore.user?.username || 'User' }}
-            </p>
-            <p class="text-xs text-gray-500 truncate">Admin</p>
-          </div>
-        </div>
+      <!-- Collapse Toggle (Desktop only) -->
+      <div class="hidden lg:flex p-3 border-t border-light-border dark:border-dark-border justify-end">
+        <button @click="toggleCollapse" class="p-2 text-light-muted dark:text-dark-muted hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors w-full flex" :class="isCollapsed ? 'justify-center' : 'justify-end'">
+          <font-awesome-icon :icon="isCollapsed ? 'bars' : 'bars'" class="w-4 h-4" />
+        </button>
+      </div>
+
+      <!-- Footer User Info -->
+      <div class="border-t border-light-border dark:border-dark-border p-3">
+        <Menu as="div" class="relative">
+          <MenuButton class="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-dark-border transition-colors outline-none" :class="isCollapsed ? 'justify-center' : 'text-left'">
+            <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-accent to-purple-500 flex flex-shrink-0 items-center justify-center text-white font-bold shadow-sm">
+              {{ authStore.user?.username?.charAt(0).toUpperCase() || 'A' }}
+            </div>
+            <div v-show="!isCollapsed" class="flex-1 min-w-0">
+              <p class="text-sm font-semibold text-light-text dark:text-dark-text truncate">
+                {{ authStore.user?.username || 'Administrator' }}
+              </p>
+              <p class="text-xs text-light-muted dark:text-dark-muted truncate">Admin</p>
+            </div>
+          </MenuButton>
+
+          <transition
+            enter-active-class="transition duration-100 ease-out"
+            enter-from-class="transform scale-95 opacity-0"
+            enter-to-class="transform scale-100 opacity-100"
+            leave-active-class="transition duration-75 ease-in"
+            leave-from-class="transform scale-100 opacity-100"
+            leave-to-class="transform scale-95 opacity-0"
+          >
+            <MenuItems class="absolute bottom-full left-0 mb-2 w-full origin-bottom divide-y divide-light-border dark:divide-dark-border rounded-xl bg-light-card dark:bg-dark-card shadow-lg ring-1 ring-black/5 focus:outline-none overflow-hidden border border-light-border dark:border-dark-border z-50 min-w-[200px]">
+              <div class="p-1">
+                <MenuItem v-slot="{ active }">
+                  <button :class="[active ? 'bg-gray-50 dark:bg-dark-border text-light-text dark:text-dark-text' : 'text-light-muted dark:text-dark-muted', 'group flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors']">
+                    <font-awesome-icon icon="user" class="w-4 h-4" /> Edit Profil
+                  </button>
+                </MenuItem>
+                <MenuItem v-slot="{ active }">
+                  <button :class="[active ? 'bg-gray-50 dark:bg-dark-border text-light-text dark:text-dark-text' : 'text-light-muted dark:text-dark-muted', 'group flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors']">
+                    <font-awesome-icon icon="users" class="w-4 h-4" /> Ganti Akun
+                  </button>
+                </MenuItem>
+              </div>
+              <div class="p-1">
+                <MenuItem v-slot="{ active }">
+                  <button @click="authStore.logout()" :class="[active ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400' : 'text-red-500 dark:text-red-400', 'group flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors']">
+                    <font-awesome-icon icon="rotate-left" class="w-4 h-4" /> Keluar
+                  </button>
+                </MenuItem>
+              </div>
+            </MenuItems>
+          </transition>
+        </Menu>
       </div>
     </aside>
   </div>
 </template>
+
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.3);
+  border-radius: 4px;
+}
+</style>

@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import AppLayout from './components/layout/AppLayout.vue';
+import BaseToast from './components/ui/BaseToast.vue';
 
 const route = useRoute();
 
@@ -24,6 +25,7 @@ const isAuthRoute = computed(() => route.meta.requiresAuth);
   <template v-else>
     <router-view />
   </template>
+  <BaseToast />
 </template>
 
 <style>

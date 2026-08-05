@@ -1,72 +1,127 @@
 <script setup>
-import { Dialog, DialogPanel, DialogTitle, TransitionChild, TransitionRoot } from '@headlessui/vue';
-import { XMarkIcon } from '@heroicons/vue/24/outline';
+import { onMounted, onUnmounted } from 'vue';
 
-defineProps({
+const props = defineProps({
   isOpen: Boolean,
   title: String,
-  maxWidth: {
+  subtitle: String,
+  icon: String, // fontawesome icon
+  iconColor: {
     type: String,
-    default: 'max-w-md'
+    default: 'text-accent bg-accent/10',
   }
 });
 
-defineEmits(['close']);
+const emit = defineEmits(['close']);
+
+const close = () => {
+  emit('close');
+};
+
+const handleKeydown = (e) => {
+  if (e.key === 'Escape' && props.isOpen) {
+    close();
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeydown);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown);
+});
 </script>
 
 <template>
-  <TransitionRoot as="template" :show="isOpen">
-    <Dialog as="div" class="relative z-50" @close="$emit('close')">
+  <transition name="modal-fade">
+    <div 
+      v-if="isOpen" 
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+    >
       <!-- Backdrop -->
-      <TransitionChild
-        as="template"
-        enter="ease-out duration-300"
-        enter-from="opacity-0"
-        enter-to="opacity-100"
-        leave="ease-in duration-200"
-        leave-from="opacity-100"
-        leave-to="opacity-0"
-      >
-        <div class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity" />
-      </TransitionChild>
+      <div 
+        class="absolute inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity" 
+        @click="close"
+      ></div>
 
-      <div class="fixed inset-0 z-10 overflow-y-auto">
-        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-          <TransitionChild
-            as="template"
-            enter="ease-out duration-300"
-            enter-from="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-            enter-to="opacity-100 translate-y-0 sm:scale-100"
-            leave="ease-in duration-200"
-            leave-from="opacity-100 translate-y-0 sm:scale-100"
-            leave-to="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+      <!-- Modal Panel -->
+      <transition name="modal-scale">
+        <div 
+          v-if="isOpen"
+          class="relative w-full max-w-lg bg-light-card dark:bg-dark-card rounded-2xl shadow-2xl border border-light-border dark:border-dark-border overflow-hidden flex flex-col max-h-[90vh]"
+        >
+          <!-- Close Button -->
+          <button 
+            @click="close" 
+            class="absolute top-4 right-4 p-2 text-light-muted dark:text-dark-muted hover:bg-gray-100 dark:hover:bg-dark-border rounded-full transition-colors z-10"
           >
-            <DialogPanel 
-              :class="[
-                'relative transform overflow-hidden rounded-2xl bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 w-full border border-gray-100 dark:border-gray-700',
-                maxWidth
-              ]"
-            >
-              <div class="border-b border-gray-100 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
-                <DialogTitle as="h3" class="text-lg font-bold text-gray-900 dark:text-white">
-                  {{ title }}
-                </DialogTitle>
-                <button
-                  type="button"
-                  class="rounded-lg p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-500 dark:hover:text-gray-300 transition-colors"
-                  @click="$emit('close')"
-                >
-                  <XMarkIcon class="h-5 w-5" aria-hidden="true" />
-                </button>
-              </div>
-              
-              <div class="px-6 py-5">
-                <slot />
-              </div>
-            </DialogPanel>
-          </TransitionChild>
+            <font-awesome-icon icon="times" />
+          </button>
+
+          <!-- Header -->
+          <div class="px-6 py-5 border-b border-light-border dark:border-dark-border flex items-start gap-4">
+            <div v-if="icon" :class="['w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 text-xl', iconColor]">
+              <font-awesome-icon :icon="icon" />
+            </div>
+            <div>
+              <h3 class="text-xl font-heading font-bold text-light-text dark:text-dark-text">
+                {{ title }}
+              </h3>
+              <p v-if="subtitle" class="mt-1 text-sm text-light-muted dark:text-dark-muted">
+                {{ subtitle }}
+              </p>
+            </div>
+          </div>
+
+          <!-- Body -->
+          <div class="p-6 overflow-y-auto custom-scrollbar flex-1">
+            <slot></slot>
+          </div>
+
+          <!-- Footer -->
+          <div v-if="$slots.footer" class="px-6 py-4 border-t border-light-border dark:border-dark-border bg-gray-50/50 dark:bg-dark-bg/50 flex justify-end gap-3 rounded-b-2xl">
+            <slot name="footer"></slot>
+          </div>
         </div>
-      </div>
-    </Dialog>
-  </TransitionRoot>
+      </transition>
+    </div>
+  </transition>
 </template>
+
+<style scoped>
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+
+.modal-scale-enter-active {
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.modal-scale-leave-active {
+  transition: all 0.2s ease-in;
+}
+.modal-scale-enter-from {
+  opacity: 0;
+  transform: scale(0.95) translateY(10px);
+}
+.modal-scale-leave-to {
+  opacity: 0;
+  transform: scale(0.95) translateY(10px);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.5);
+  border-radius: 10px;
+}
+</style>

@@ -17,6 +17,36 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/pelanggan',
+      name: 'pelanggan',
+      component: () => import('../views/PelangganView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/transaksi',
+      name: 'transaksi',
+      component: () => import('../views/TransaksiView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/pengembalian',
+      name: 'pengembalian',
+      component: () => import('../views/PengembalianView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/pembayaran',
+      name: 'pembayaran',
+      component: () => import('../views/PembayaranView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/users',
+      name: 'users',
+      component: () => import('../views/UsersView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('../views/LoginView.vue'),

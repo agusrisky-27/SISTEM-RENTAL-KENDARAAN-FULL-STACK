@@ -4,6 +4,86 @@
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100;
+    @apply font-sans bg-light-bg text-light-text antialiased transition-colors duration-200;
   }
+  
+  .dark body {
+    @apply bg-dark-bg text-dark-text;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading font-bold text-light-text;
+  }
+
+  .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+    @apply text-dark-text;
+  }
+
+  /* Custom scrollbar for webkit */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 dark:bg-gray-600 rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400 dark:bg-gray-500;
+  }
+}
+
+@layer components {
+  /* Generic card component */
+  .card {
+    @apply bg-light-card dark:bg-dark-card border border-light-border dark:border-dark-border rounded-card shadow-card transition-all duration-200 hover:shadow-md;
+  }
+
+  /* Base button styling */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 font-medium rounded-btn transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 dark:focus:ring-offset-dark-bg;
+  }
+  
+  .btn-primary {
+    @apply btn bg-accent text-white hover:bg-accent-hover;
+  }
+  
+  .btn-ghost {
+    @apply btn bg-transparent text-light-muted dark:text-dark-muted hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-light-text dark:hover:text-dark-text;
+  }
+
+  /* Form inputs */
+  .form-input, .form-select, .form-textarea {
+    @apply w-full px-3 py-2 bg-white dark:bg-dark-card border border-light-border dark:border-dark-border rounded-btn text-light-text dark:text-dark-text focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-colors;
+  }
+  .form-label {
+    @apply block text-sm font-medium text-light-muted dark:text-dark-muted mb-1;
+  }
+}
+
+/* Animations */
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.page-enter-from,
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
