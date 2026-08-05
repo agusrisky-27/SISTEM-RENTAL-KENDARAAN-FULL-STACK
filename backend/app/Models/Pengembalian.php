@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Pengembalian extends Model
 {
     protected $fillable = [
-        'id_transaksi', 'tgl_kembali_aktual', 'kondisi_kendaraan', 'denda'
+        'id_transaksi', 'tgl_kembali_aktual', 'kondisi_kendaraan', 'denda', 'catatan'
     ];
 
     public function transaksi()

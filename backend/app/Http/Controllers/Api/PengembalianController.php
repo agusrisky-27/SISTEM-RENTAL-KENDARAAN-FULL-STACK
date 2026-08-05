@@ -21,7 +21,7 @@ class PengembalianController extends Controller
                 'id_transaksi' => $p->id_transaksi,
                 'tanggal_kembali' => $p->tgl_kembali_aktual,
                 'kondisi_kendaraan' => $p->kondisi_kendaraan,
-                'catatan' => $p->denda, // frontend calls it catatan, model has denda
+                'catatan' => $p->catatan,
                 'transaksi' => $p->transaksi
             ];
         });
@@ -42,7 +42,7 @@ class PengembalianController extends Controller
                 'id_transaksi' => $request->id_transaksi,
                 'tgl_kembali_aktual' => $request->tanggal_kembali,
                 'kondisi_kendaraan' => $request->kondisi_kendaraan,
-                'denda' => $request->catatan ?? ''
+                'catatan' => $request->catatan ?? ''
             ]);
 
             $transaksi = Transaksi::find($request->id_transaksi);
