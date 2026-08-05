@@ -48,7 +48,7 @@ onUnmounted(() => {
         isSidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'
       ]"
     >
-      <AppTopbar @toggle-sidebar="toggleSidebar" />
+      <AppTopbar @toggle-sidebar="toggleSidebar" @toggle-collapse="toggleCollapse" />
       
       <main class="flex-1 p-4 lg:p-6">
         <div class="mx-auto max-w-7xl">

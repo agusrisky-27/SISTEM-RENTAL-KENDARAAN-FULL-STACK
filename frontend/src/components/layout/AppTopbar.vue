@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useTheme } from '../../composables/useTheme';
 
-const emit = defineEmits(['toggleSidebar']);
+const emit = defineEmits(['toggleSidebar', 'toggleCollapse']);
 
 const route = useRoute();
 const { isDark, toggleTheme } = useTheme();
@@ -36,13 +36,21 @@ const getAddButtonText = () => {
 <template>
   <header class="h-16 bg-light-card dark:bg-dark-card border-b border-light-border dark:border-dark-border flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 transition-colors">
     <div class="flex items-center gap-4">
+      <!-- Mobile Toggle -->
       <button 
         @click="emit('toggleSidebar')"
         class="lg:hidden p-2 text-light-muted dark:text-dark-muted hover:bg-gray-100 dark:hover:bg-dark-border rounded-lg transition-colors"
       >
         <font-awesome-icon icon="bars" class="w-5 h-5" />
       </button>
-      
+
+      <!-- Desktop Collapse Toggle -->
+      <button 
+        @click="emit('toggleCollapse')"
+        class="hidden lg:flex p-2 text-light-muted dark:text-dark-muted hover:bg-gray-100 dark:hover:bg-dark-border rounded-lg transition-colors items-center justify-center"
+      >
+        <font-awesome-icon icon="bars" class="w-5 h-5" />
+      </button>
       <!-- Breadcrumb -->
       <nav class="hidden sm:flex" aria-label="Breadcrumb">
         <ol class="flex items-center space-x-2 text-sm font-medium">

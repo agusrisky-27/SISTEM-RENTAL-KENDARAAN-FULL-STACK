@@ -95,12 +95,7 @@ const toggleCollapse = () => {
         </router-link>
       </div>
 
-      <!-- Collapse Toggle (Desktop only) -->
-      <div class="hidden lg:flex p-3 border-t border-light-border dark:border-dark-border justify-end">
-        <button @click="toggleCollapse" class="p-2 text-light-muted dark:text-dark-muted hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors w-full flex" :class="isCollapsed ? 'justify-center' : 'justify-end'">
-          <font-awesome-icon :icon="isCollapsed ? 'bars' : 'bars'" class="w-4 h-4" />
-        </button>
-      </div>
+
 
       <!-- Footer User Info -->
       <div class="border-t border-light-border dark:border-dark-border p-3">
