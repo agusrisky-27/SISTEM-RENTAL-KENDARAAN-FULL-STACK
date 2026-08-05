@@ -51,20 +51,11 @@ const getAddButtonText = () => {
       >
         <font-awesome-icon icon="bars" class="w-5 h-5" />
       </button>
-      <!-- Breadcrumb -->
-      <nav class="hidden sm:flex" aria-label="Breadcrumb">
-        <ol class="flex items-center space-x-2 text-sm font-medium">
-          <li>
-            <span class="text-light-muted dark:text-dark-muted">Panel</span>
-          </li>
-          <li>
-            <span class="text-light-muted dark:text-dark-muted mx-2">/</span>
-          </li>
-          <li>
-            <span class="text-light-text dark:text-dark-text font-bold">{{ pageName }}</span>
-          </li>
-        </ol>
-      </nav>
+      <!-- App Logo / Name -->
+      <div class="flex flex-col truncate ml-2">
+        <span class="text-lg font-heading font-bold text-light-text dark:text-dark-text tracking-tight leading-tight">Rental Kendaraan</span>
+        <span class="text-[10px] text-light-muted dark:text-dark-muted font-medium uppercase tracking-wider leading-none">Admin Panel</span>
+      </div>
     </div>
 
     <div class="flex items-center gap-3 sm:gap-4">

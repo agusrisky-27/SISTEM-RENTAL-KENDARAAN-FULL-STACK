@@ -52,15 +52,11 @@ const toggleCollapse = () => {
       ]"
     >
       <!-- Logo Section -->
-      <div class="h-16 flex items-center justify-between px-4 border-b border-light-border dark:border-dark-border">
-        <div class="flex flex-col truncate" v-show="!isCollapsed">
-          <span class="text-lg font-heading font-bold text-light-text dark:text-dark-text tracking-tight">Rental Kendaraan</span>
-          <span class="text-xs text-light-muted dark:text-dark-muted font-medium uppercase tracking-wider">Admin Panel</span>
+      <div class="h-16 flex items-center justify-center px-4 border-b border-light-border dark:border-dark-border">
+        <div class="text-accent flex items-center justify-center">
+          <font-awesome-icon icon="car-side" class="text-2xl" />
         </div>
-        <div v-show="isCollapsed" class="w-full flex justify-center text-accent">
-          <font-awesome-icon icon="car-side" class="text-xl" />
-        </div>
-        <button @click="emit('close')" class="lg:hidden p-2 text-light-muted dark:text-dark-muted hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+        <button @click="emit('close')" class="lg:hidden absolute right-4 p-2 text-light-muted dark:text-dark-muted hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
           <font-awesome-icon icon="times" />
         </button>
       </div>
