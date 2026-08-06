@@ -46,17 +46,17 @@ const toggleCollapse = () => {
     <!-- Sidebar -->
     <aside 
       :class="[
-        'fixed top-0 left-0 z-50 h-screen bg-light-card dark:bg-dark-card border-r border-light-border dark:border-dark-border transition-all duration-300 ease-in-out flex flex-col',
+        'fixed top-0 left-0 z-50 h-screen bg-white/80 dark:bg-[#0a0f1c]/80 backdrop-blur-2xl border-r border-gray-200/50 dark:border-white/5 transition-all duration-300 ease-in-out flex flex-col',
         isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         isCollapsed ? 'w-20' : 'w-64'
       ]"
     >
       <!-- Logo Section -->
-      <div class="h-16 flex items-center justify-center px-4 border-b border-light-border dark:border-dark-border">
-        <div class="text-accent flex items-center justify-center">
+      <div class="h-16 flex items-center justify-center px-4 border-b border-gray-200/50 dark:border-white/5 bg-gradient-to-r from-indigo-500/5 to-purple-500/5">
+        <div class="text-indigo-500 flex items-center justify-center drop-shadow-md">
           <font-awesome-icon icon="car-side" class="text-2xl" />
         </div>
-        <button @click="emit('close')" class="lg:hidden absolute right-4 p-2 text-light-muted dark:text-dark-muted hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+        <button @click="emit('close')" class="lg:hidden absolute right-4 p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg">
           <font-awesome-icon icon="times" />
         </button>
       </div>
