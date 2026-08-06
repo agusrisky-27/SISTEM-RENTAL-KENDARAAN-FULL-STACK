@@ -152,7 +152,7 @@ const handleClickOutside = (e) => {
 </script>
 
 <template>
-  <header class="h-16 bg-light-card dark:bg-dark-card border-b border-light-border dark:border-dark-border flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 transition-colors">
+  <header class="h-16 bg-white/70 dark:bg-[#0a0f1c]/70 backdrop-blur-xl border-b border-gray-200/50 dark:border-white/5 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 transition-colors">
     <div class="flex items-center gap-4">
       <!-- Mobile Toggle -->
       <button 
